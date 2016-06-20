@@ -1,0 +1,70 @@
+#libfaac-dev require multiverse
+
+#- name: update /etc/apt/sources.list
+#  lineinfile: dest=/etc/apt/sources.list line='deb http://ftp.daum.net/ubuntu trusty multiverse' state=present backup=yes
+#  register: update_sources_list
+
+- name: Updating packages
+  action: apt update_cache=yes
+#  when: update_sources_list.changed
+
+- name: install required packages
+  apt: name={{item}} state=present force=yes
+  with_items:
+    - build-essential
+    - yasm
+    - libgpac-dev
+    - libdirac-dev
+    - libgsm1-dev
+    - libschroedinger-dev
+    - libspeex-dev
+    - libvorbis-dev
+    - libopenjpeg-dev
+    - libdc1394-22-dev
+    - libsdl1.2-dev
+    - zlib1g-dev
+    - texi2html
+    - libfaac-dev
+    - libmp3lame-dev
+    - libtheora-dev
+    - libopencore-amrnb-dev
+    - libopencore-amrwb-dev
+    - frei0r-plugins-dev
+    - libcv-dev
+    - libvpx-dev
+    - libgavl1
+    - libx264-dev
+
+- name: test
+  command: "/usr/local/bin/ffmbc -version"
+  ignore_errors: true
+  register: ffmbc_test_result
+
+- name: unarchive
+  unarchive: src=FFmbc-0.7.1.tar.bz2 dest="/tmp/" creates="/tmp/FFmbc-0.7.1"
+  when: ffmbc_test_result|failed
+
+- name: build
+  shell: "{{ item }}"
+  args:
+      chdir: /tmp/FFmbc-0.7.1
+  sudo: true
+  with_items:
+    - "./configure --bindir={{install_path}} --enable-gpl --enable-nonfree --enable-shared --enable-postproc --enable-runtime-cpudetect --enable-frei0r --enable-libdc1394 --enable-libdirac --enable-libfaac --enable-libgsm --enable-libmp3lame --enable-libopenjpeg --enable-libschroedinger --enable-libspeex --enable-libtheora --enable-libvorbis --enable-libvpx --enable-libx264 --enable-pthreads --enable-zlib --disable-doc"
+    - make -j {{ansible_processor_cores}} install
+    - ldconfig
+  when: ffmbc_test_result|failed
+
+
+- name: create link
+  sudo: yes
+  file: src="{{install_path}}/ffprobe" dest="/usr/local/bin/ffprobe-bc" state=link
+  when: ffmbc_test_result|failed
+
+- name: create link
+  sudo: yes
+  file: src="{{install_path}}/ffmbc" dest="/usr/local/bin/ffmbc" state=link
+  when: ffmbc_test_result|failed
+
+- name: test
+  command: /usr/local/bin/ffmbc -version
